@@ -412,17 +412,65 @@ const WorkerReviews = () => {
                       
                       {review.reviewImages && review.reviewImages.length > 0 && (
                         <div className="review-images">
-                          {review.reviewImages.map((image, index) => (
-                            <img 
-                              key={index} 
-                              src={`http://localhost:5003/${image.file_path ? image.file_path.replace(/\\/g, '/') : image.path?.replace(/\\/g, '/')}`} 
-                              alt={`Review ${index + 1}`}
-                              onError={(e) => {
-                                console.error(`Error loading image: ${image.file_path || image.path}`);
-                                e.target.src = 'https://via.placeholder.com/100x100?text=Image+Error';
-                              }}
-                            />
-                          ))}
+                          {review.reviewImages.map((image, index) => {
+                            // Improved image path handling with better fallbacks
+                            let imagePath;
+                            
+                            // Case 1: Direct path property starting with /uploads
+                            if (image.path && typeof image.path === 'string' && image.path.startsWith('/uploads')) {
+                              imagePath = `http://localhost:5003${image.path}`;
+                            }
+                            // Case 2: Direct file_path property starting with /uploads
+                            else if (image.file_path && typeof image.file_path === 'string' && image.file_path.startsWith('/uploads')) {
+                              imagePath = `http://localhost:5003${image.file_path}`;
+                            }
+                            // Case 3: Direct filename property
+                            else if (image.filename && typeof image.filename === 'string') {
+                              imagePath = `http://localhost:5003/uploads/reviews/${image.filename}`;
+                            }
+                            // Case 4: Extract filename from path or file_path
+                            else {
+                              const pathToUse = (image.path || image.file_path || '').toString();
+                              // Extract just the filename from the path
+                              const filename = pathToUse.split(/[\\/]/).pop();
+                              // Construct a proper URL to the image
+                              imagePath = filename ? `http://localhost:5003/uploads/reviews/${filename}` : '';
+                            }
+                            
+                            // Case 5: If image is just a string (direct filename or path)
+                            if (!imagePath && typeof image === 'string') {
+                              if (image.startsWith('/uploads')) {
+                                imagePath = `http://localhost:5003${image}`;
+                              } else if (image.includes('/')) {
+                                const filename = image.split('/').pop();
+                                imagePath = `http://localhost:5003/uploads/reviews/${filename}`;
+                              } else {
+                                imagePath = `http://localhost:5003/uploads/reviews/${image}`;
+                              }
+                            }
+                            
+                            // Fallback if we still don't have a path
+                            if (!imagePath) {
+                              console.error('Could not determine image path:', image);
+                              return null;
+                            }
+                            
+                            // Log the image path for debugging
+                            console.log(`Rendering image with path: ${imagePath}`);
+                            
+                            return (
+                              <img 
+                                key={index} 
+                                src={imagePath} 
+                                alt={`Review ${index + 1}`}
+                                onError={(e) => {
+                                  console.error(`Error loading image: ${imagePath}`);
+                                  e.target.src = 'https://via.placeholder.com/100x100?text=Image+Not+Found';
+                                }}
+                                className="review-image"
+                              />
+                            );
+                          })}
                         </div>
                       )}
                     </div>
@@ -441,4 +489,4 @@ const WorkerReviews = () => {
   );
 };
 
-export default WorkerReviews; 
+export default WorkerReviews;

@@ -228,9 +228,11 @@ router.post("/", async (req, res) => {
         // Process review images
         if (req.files.reviewImages) {
           req.files.reviewImages.forEach((file) => {
+            // Store relative URL path instead of absolute file path
+            const relativePath = `/uploads/reviews/${file.filename}`;
             reviewImages.push({
               filename: file.filename,
-              path: file.path,
+              path: relativePath,
               mimetype: file.mimetype,
             });
           });
@@ -239,9 +241,11 @@ router.post("/", async (req, res) => {
         // Process additional images
         if (req.files.additionalImages) {
           req.files.additionalImages.forEach((file) => {
+            // Store relative URL path instead of absolute file path
+            const relativePath = `/uploads/reviews/${file.filename}`;
             additionalImages.push({
               filename: file.filename,
-              path: file.path,
+              path: relativePath,
               mimetype: file.mimetype,
             });
           });
@@ -441,7 +445,25 @@ router.get("/", async (req, res) => {
                 
                 // Map images to their respective reviews
                 reviewsWithImages = reviews.map(review => {
-                  const reviewImages = allImages.filter(img => img.review_id === review.id);
+                  const reviewImages = allImages.filter(img => img.review_id === review.id)
+                    .map(img => {
+                      // Convert file paths to relative URLs for web access
+                      let path = img.path || img.file_path;
+                      
+                      // If path is already a relative URL starting with /uploads, keep it
+                      if (path && !path.startsWith('/uploads')) {
+                        // Extract just the filename from the path
+                        const filename = path.split(/[\\/]/).pop();
+                        // Create a proper relative URL
+                        path = `/uploads/reviews/${filename}`;
+                      }
+                      
+                      return {
+                        ...img,
+                        path: path
+                      };
+                    });
+                  
                   return {
                     ...review,
                     reviewImages: reviewImages || []
@@ -879,4 +901,4 @@ router.get("/:id", async (req, res, next) => {
   }
 });
 
-module.exports = router; 
+module.exports = router;

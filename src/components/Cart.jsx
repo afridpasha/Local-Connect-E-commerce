@@ -5,7 +5,7 @@ import { CartContext } from './CartContext';
 import './Cart.css';
 import { loadStripe } from '@stripe/stripe-js';
 import axios from 'axios';
-import { FaShoppingCart, FaTrashAlt, FaMapMarkerAlt, FaPlus, FaMinus } from 'react-icons/fa';
+import { FaShoppingCart, FaTrashAlt, FaMapMarkerAlt, FaPlus, FaMinus, FaUser, FaPhone, FaEnvelope } from 'react-icons/fa';
 
 // Your Stripe publishable key
 const STRIPE_PUBLISHABLE_KEY = 'pk_test_51RBkJNPPVB7AxTVkj61Y1mqxRDes8mukjMTfKkqQRad7ycBldQQRe7QT7FmnOzDdmG0OsaFwTMpK2tbbHal5m3vP00VbSmzNhM';
@@ -28,6 +28,17 @@ const Cart = () => {
   const [discount, setDiscount] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  const [showUserInfoModal, setShowUserInfoModal] = useState(false);
+  const [userInfo, setUserInfo] = useState({
+    fullName: '',
+    mobileNumber: '',
+    email: ''
+  });
+  const [userInfoErrors, setUserInfoErrors] = useState({
+    fullName: '',
+    mobileNumber: '',
+    email: ''
+  });
   const [staticMapUrl, setStaticMapUrl] = useState('');
   const [userCoordinates, setUserCoordinates] = useState(null);
   const [showCartItems, setShowCartItems] = useState(true);
@@ -330,8 +341,88 @@ const Cart = () => {
     });
   };
 
+  // Handle user info input changes
+  const handleUserInfoChange = (e) => {
+    const { name, value } = e.target;
+    setUserInfo(prev => ({
+      ...prev,
+      [name]: value
+    }));
+    
+    // Clear error when user types
+    if (userInfoErrors[name]) {
+      setUserInfoErrors(prev => ({
+        ...prev,
+        [name]: ''
+      }));
+    }
+  };
+
+  // Validate user information
+  const validateUserInfo = () => {
+    const errors = {};
+    let isValid = true;
+
+    // Validate full name
+    if (!userInfo.fullName.trim()) {
+      errors.fullName = 'Full name is required';
+      isValid = false;
+    }
+
+    // Validate mobile number
+    if (!userInfo.mobileNumber.trim()) {
+      errors.mobileNumber = 'Mobile number is required';
+      isValid = false;
+    } else if (!/^\d{10}$/.test(userInfo.mobileNumber.trim())) {
+      errors.mobileNumber = 'Please enter a valid 10-digit mobile number';
+      isValid = false;
+    }
+
+    // Validate email
+    if (!userInfo.email.trim()) {
+      errors.email = 'Email address is required';
+      isValid = false;
+    } else if (!/^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/.test(userInfo.email.trim())) {
+      errors.email = 'Please enter a valid email address';
+      isValid = false;
+    }
+
+    setUserInfoErrors(errors);
+    return isValid;
+  };
+
+  // Handle proceed to payment button click
+  const handleProceedToPayment = () => {
+    if (selectedTimeSlots.length === 0 || !date || !location) {
+      alert('Please fill all booking details before proceeding to payment.');
+      return;
+    }
+    
+    if (cartItems.length === 0) {
+      alert('Your cart is empty. Add some items before proceeding to payment.');
+      return;
+    }
+
+    // Show user information modal
+    setShowUserInfoModal(true);
+  };
+
+  // Handle user info form submission
+  const handleUserInfoSubmit = (e) => {
+    e.preventDefault();
+    
+    if (validateUserInfo()) {
+      console.log('User info validated successfully:', userInfo);
+      // Close modal and proceed with payment
+      setShowUserInfoModal(false);
+      processPayment();
+    } else {
+      console.log('User info validation failed:', userInfoErrors);
+    }
+  };
+
   // Stripe payment processing
-  const handlePayment = async () => {
+  const processPayment = async () => {
     if (selectedTimeSlots.length === 0 || !date || !location) {
       alert('Please fill all booking details before proceeding to payment.');
       return;
@@ -399,12 +490,46 @@ const Cart = () => {
         });
       }
       
-      // Prepare metadata with order details
+      // Prepare metadata with order details and user contact information
       const metadata = {
         delivery_address: location,
         delivery_date: date,
         time_slots: selectedTimeSlots.join(', '),
-        promo_code: promoCode || 'None'
+        promo_code: promoCode || 'None',
+        full_name: userInfo.fullName,
+        mobile_number: userInfo.mobileNumber,
+        email: userInfo.email
+      };
+      
+      // Prepare order data for MongoDB
+      const orderData = {
+        contactInfo: {
+          fullName: userInfo.fullName,
+          mobileNumber: userInfo.mobileNumber,
+          email: userInfo.email
+        },
+        items: cartItems.map(item => ({
+          itemId: item._id,
+          itemType: item.itemType === 'ticket' ? 
+            (item.concertName ? 'ConcertTicket' : 
+             item.theaterName ? 'TheaterTicket' : 
+             item.sportsName ? 'SportsTicket' : 
+             item.festivalName ? 'FestivalsTicket' : 'ConcertTicket') : 'Worker',
+          name: item.fullName || item.name || item.performerName || item.eventName || 'Item',
+          price: item.price,
+          quantity: item.quantity,
+          fees: item.fees || 0
+        })),
+        location: location,
+        date: date,
+        timeSlots: selectedTimeSlots,
+        subtotal: subtotal,
+        deliveryFee: deliveryFee,
+        platformFee: platformFee,
+        discount: discount,
+        tax: tax,
+        total: total,
+        promoCode: promoCode || ''
       };
       
       console.log('Sending payment request with line items:', lineItems);
@@ -412,22 +537,34 @@ const Cart = () => {
       // Call backend server to create a Stripe checkout session
       console.log('Attempting to connect to payment server...');
       
-      const serverUrl = 'http://localhost:5000/api/create-checkout-session';
+      const serverUrl = 'http://localhost:5003/api/create-checkout-session';
       console.log('Sending request to:', serverUrl);
       
       // First ping the server to check if it's responsive
       try {
-        await axios.get('http://localhost:5000/', { timeout: 5000 });
+        await axios.get('http://localhost:5003/', { timeout: 5000 });
         console.log('Payment server is responsive');
       } catch (pingError) {
         console.warn('Could not ping payment server:', pingError);
         // Continue anyway as the POST request might still work
       }
       
+      // First save the order to MongoDB
+      const orderResponse = await axios.post('http://localhost:5003/api/orders', orderData, {
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        withCredentials: true
+      });
+      
+      console.log('Order saved to database:', orderResponse.data);
+      
+      // Then create Stripe checkout session
       const response = await axios.post(serverUrl, {
         line_items: lineItems,
         metadata: metadata,
-        success_url: `${window.location.origin}/payment-success`,
+        order_id: orderResponse.data._id, // Include the MongoDB order ID
+        success_url: `${window.location.origin}/payment-success?order_id=${orderResponse.data._id}`,
         cancel_url: `${window.location.origin}/cart`
       }, {
         headers: {
@@ -879,7 +1016,7 @@ const Cart = () => {
 
             <button 
               className="payment-btn" 
-              onClick={handlePayment}
+              onClick={handleProceedToPayment}
               disabled={isProcessingPayment}
             >
               {isProcessingPayment ? 'Processing...' : (
@@ -889,6 +1026,89 @@ const Cart = () => {
                 </>
               )}
             </button>
+            
+            {/* User Information Modal */}
+            {showUserInfoModal && (
+              <div className="user-info-modal-overlay">
+                <div className="user-info-modal">
+                  <h2>Contact Information</h2>
+                  <p>Please provide your contact details to complete the order</p>
+                  
+                  <form onSubmit={handleUserInfoSubmit}>
+                    <div className="form-group">
+                      <label htmlFor="fullName">
+                        <FaUser /> Full Name
+                      </label>
+                      <input
+                        type="text"
+                        id="fullName"
+                        name="fullName"
+                        value={userInfo.fullName}
+                        onChange={handleUserInfoChange}
+                        placeholder="Enter your full name"
+                        className={userInfoErrors.fullName ? 'error' : ''}
+                      />
+                      {userInfoErrors.fullName && (
+                        <span className="error-message">{userInfoErrors.fullName}</span>
+                      )}
+                    </div>
+                    
+                    <div className="form-group">
+                      <label htmlFor="mobileNumber">
+                        <FaPhone /> Mobile Number
+                      </label>
+                      <input
+                        type="tel"
+                        id="mobileNumber"
+                        name="mobileNumber"
+                        value={userInfo.mobileNumber}
+                        onChange={handleUserInfoChange}
+                        placeholder="Enter your 10-digit mobile number"
+                        className={userInfoErrors.mobileNumber ? 'error' : ''}
+                      />
+                      {userInfoErrors.mobileNumber && (
+                        <span className="error-message">{userInfoErrors.mobileNumber}</span>
+                      )}
+                    </div>
+                    
+                    <div className="form-group">
+                      <label htmlFor="email">
+                        <FaEnvelope /> Email Address
+                      </label>
+                      <input
+                        type="email"
+                        id="email"
+                        name="email"
+                        value={userInfo.email}
+                        onChange={handleUserInfoChange}
+                        placeholder="Enter your email address"
+                        className={userInfoErrors.email ? 'error' : ''}
+                      />
+                      {userInfoErrors.email && (
+                        <span className="error-message">{userInfoErrors.email}</span>
+                      )}
+                    </div>
+                    
+                    <div className="modal-buttons">
+                      <button 
+                        type="button" 
+                        className="cancel-btn"
+                        onClick={() => setShowUserInfoModal(false)}
+                      >
+                        Cancel
+                      </button>
+                      <button 
+                        type="submit" 
+                        className="submit-btn"
+                        disabled={isProcessingPayment}
+                      >
+                        {isProcessingPayment ? 'Processing...' : 'Continue to Payment'}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

@@ -134,6 +134,26 @@ const ReviewForm = () => {
     // Handle checkbox inputs differently
     const inputValue = type === 'checkbox' ? checked : value;
     
+    // Special handling for worker selection to extract profession
+    if (name === 'worker_name' && value) {
+      const selectedWorker = workers.find(worker => worker.fullName === value);
+      if (selectedWorker) {
+        // Extract the profession (first worker type that is true)
+        const profession = Object.entries(selectedWorker.workerTypes)
+          .filter(([_, isSelected]) => isSelected)
+          .map(([type]) => type)[0] || 'N/A';
+        
+        // Update both worker_name and product_name (profession)
+        setFormData({
+          ...formData,
+          [name]: inputValue,
+          product_name: profession // Set the profession in product_name field
+        });
+        return;
+      }
+    }
+    
+    // Default handling for other fields
     setFormData({
       ...formData,
       [name]: inputValue,
@@ -447,4 +467,4 @@ const ReviewForm = () => {
   );
 };
 
-export default ReviewForm; 
+export default ReviewForm;

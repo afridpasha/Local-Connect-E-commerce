@@ -30,7 +30,7 @@ app.use(cors({
     // Not allowed by CORS
     callback(new Error('Not allowed by CORS'));
   },
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
   credentials: true
 }));
 
@@ -54,8 +54,23 @@ app.use((req, res, next) => {
 // Serve static files from the uploads folder
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
+// Add a specific route for review images to ensure they're properly served
+app.get('/uploads/reviews/:filename', (req, res) => {
+  const filename = req.params.filename;
+  const filePath = path.join(__dirname, 'uploads', 'reviews', filename);
+  res.sendFile(filePath);
+});
+
+// Add a route to handle legacy absolute paths
+app.get('/api/image/:filename', (req, res) => {
+  const filename = req.params.filename;
+  const filePath = path.join(__dirname, 'uploads', 'reviews', filename);
+  res.sendFile(filePath);
+});
+
 // Create uploads directory if it does not exist
 const uploadsDir = path.join(__dirname, "uploads");
+const reviewsDir = path.join(uploadsDir, "reviews");
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
   console.log('Created uploads directory');
@@ -67,6 +82,8 @@ const workerAuthRoutes = require("./routes/workerAuth");
 const workerFormRoutes = require("./routes/WorkerForm");
 const ticketRoutes = require("./routes/tickets");
 const reviewRoutes = require("./routes/reviews");
+const orderRoutes = require("./routes/orders");
+const stripeRoutes = require("./routes/stripe");
 
 // Use the routes with prefixed paths
 app.use("/api/auth", authRoutes);
@@ -74,6 +91,8 @@ app.use("/api/worker-auth", workerAuthRoutes);
 app.use("/api/worker-form", workerFormRoutes);
 app.use("/api/tickets", ticketRoutes);
 app.use("/api/reviews", reviewRoutes);
+app.use("/api/orders", orderRoutes);
+app.use("/api", stripeRoutes);
 
 // Health-check endpoint for quick server status
 app.get('/health', (req, res) => {

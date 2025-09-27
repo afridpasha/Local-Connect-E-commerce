@@ -168,6 +168,12 @@ const WorkerLogin = () => {
     try {
       const response = await axios.post("http://localhost:5003/api/worker-auth/login", loginData);
       const { token, user } = response.data;
+      
+      // Store worker token separately
+      localStorage.setItem('workerToken', token);
+      localStorage.setItem('workerUser', JSON.stringify(user));
+      
+      // Also use the general auth context
       login(token, user);
       navigate(from, { replace: true });
     } catch (error) {
