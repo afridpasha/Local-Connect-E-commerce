@@ -334,14 +334,28 @@ input:checked + .slider:before {
   width: 100%;
   height: 100%;
   backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
   top: 0;
   left: 0;
   padding: 2rem;
   box-sizing: border-box;
 }
 
+.front {
+  z-index: 2;
+}
+
 .back {
   transform: rotateY(180deg);
+  z-index: 1;
+}
+
+.flipper.flipped .front {
+  z-index: 1;
+}
+
+.flipper.flipped .back {
+  z-index: 2;
 }
 
 .card-title {

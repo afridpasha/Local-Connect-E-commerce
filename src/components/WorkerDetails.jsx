@@ -72,8 +72,6 @@ const WorkerDetails = ({ workers }) => {
             quantity: 1
           };
           addToCart(workerToAdd);
-          // Show a success message or notification here
-          alert('Worker added to cart successfully!');
         };
 
         

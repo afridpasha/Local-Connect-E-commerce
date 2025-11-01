@@ -209,13 +209,9 @@
 }
 
 .location-input {
-  width: 100%;
-  padding: 14px 18px;
-  border: 1px solid #e2e8f0;
-  border-radius: 10px;
-  font-size: 16px;
-  transition: all 0.3s ease;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+  display: flex;
+  gap: 10px;
+  align-items: center;
   margin-bottom: 15px;
 }
 
@@ -236,21 +232,22 @@
 }
 
 .get-location-btn {
-  padding: 14px 24px;
+  padding: 14px 20px;
   background-color: #3182ce;
   color: white;
   border: none;
   border-radius: 10px;
   font-weight: 600;
-  font-size: 16px;
+  font-size: 14px;
   cursor: pointer;
   transition: all 0.3s ease;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   box-shadow: 0 3px 6px rgba(0, 0, 0, 0.15);
-  min-width: 160px;
+  min-width: 140px;
   justify-content: center;
+  white-space: nowrap;
 }
 
 .get-location-btn:hover {
@@ -526,7 +523,6 @@
 
 .cart-item {
   display: grid;
-  grid-template-columns: 80px 1fr auto auto auto;
   gap: 15px;
   align-items: center;
   padding: 15px;
@@ -534,16 +530,22 @@
   background-color: #fff;
   border-radius: 8px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  transition: all 0.2s ease;
 }
 
-/* Special layout for worker items (no quantity controls, delete icon at right) */
+.cart-item:hover {
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+  transform: translateY(-1px);
+}
+
+/* Layout for worker items (image, details, subtotal, delete) */
 .cart-item.worker-item {
-  grid-template-columns: 80px 1fr auto;
+  grid-template-columns: 60px 1fr auto auto;
 }
 
-/* Special layout for ticket items (with quantity controls but no delete button) */
+/* Layout for ticket items (image, details, quantity, subtotal) */
 .cart-item.ticket-item {
-  grid-template-columns: 80px 1fr auto auto;
+  grid-template-columns: 60px 1fr auto auto;
 }
 
 /* Ensure proper alignment for worker item elements */
@@ -562,14 +564,15 @@
 }
 
 .cart-item-image {
-  width: 80px;
-  height: 80px;
+  width: 60px;
+  height: 60px;
   overflow: hidden;
-  border-radius: 6px;
+  border-radius: 8px;
   background-color: #f0f0f0;
   display: flex;
   justify-content: center;
   align-items: center;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .cart-item-image img {
@@ -1288,4 +1291,189 @@
 
 .order-details .discount-row {
   color: #38a169;
+}
+
+/* Booking Toggle Styles */
+.cart-content-wrapper {
+  margin-top: 15px;
+}
+
+.booking-toggle {
+  display: flex;
+  gap: 0;
+  margin-bottom: 20px;
+  background-color: #f7fafc;
+  border-radius: 12px;
+  padding: 4px;
+  border: 1px solid #e2e8f0;
+}
+
+.toggle-btn {
+  flex: 1;
+  padding: 12px 16px;
+  border: none;
+  background-color: transparent;
+  color: #718096;
+  font-weight: 500;
+  font-size: 14px;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  position: relative;
+}
+
+.toggle-btn:hover {
+  color: #4a5568;
+  background-color: rgba(255, 255, 255, 0.5);
+}
+
+.toggle-btn.active {
+  background-color: white;
+  color: #3182ce;
+  font-weight: 600;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.item-count {
+  background-color: #3182ce;
+  color: white;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 10px;
+  min-width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.toggle-btn.active .item-count {
+  background-color: #2b6cb0;
+}
+
+.new-badge {
+  color: #e53e3e;
+  font-size: 16px;
+  font-weight: bold;
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* Active Booking Section */
+.active-booking-section {
+  min-height: 200px;
+}
+
+.booking-items {
+  margin-bottom: 20px;
+}
+
+.section-info {
+  background-color: #ebf8ff;
+  border: 1px solid #bee3f8;
+  border-radius: 8px;
+  padding: 10px 15px;
+  margin-bottom: 15px;
+  font-size: 14px;
+  color: #2c5282;
+  font-weight: 500;
+}
+
+.empty-section {
+  text-align: center;
+  padding: 40px 20px;
+  color: #718096;
+  font-style: italic;
+  background-color: #f7fafc;
+  border-radius: 8px;
+  border: 1px dashed #e2e8f0;
+}
+
+/* Service type styling for workers */
+.service-type {
+  color: #718096;
+  font-size: 13px;
+  margin-top: 4px;
+}
+
+/* Tickets available styling */
+.tickets-available {
+  color: #38a169;
+  font-size: 12px;
+  margin-top: 4px;
+  font-weight: 500;
+}
+
+/* Toast Notification Styles */
+.toast-notification {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  padding: 12px 20px;
+  border-radius: 8px;
+  color: white;
+  font-weight: 500;
+  z-index: 10000;
+  animation: slideInRight 0.3s ease-out, fadeOut 0.3s ease-out 2.7s;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.toast-notification.success {
+  background-color: #38a169;
+  border-left: 4px solid #2f855a;
+}
+
+.toast-notification.error {
+  background-color: #e53e3e;
+  border-left: 4px solid #c53030;
+}
+
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes fadeOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+/* Responsive adjustments for toggle */
+@media (max-width: 480px) {
+  .toggle-btn {
+    font-size: 12px;
+    padding: 10px 12px;
+  }
+  
+  .item-count {
+    font-size: 10px;
+    min-width: 16px;
+    height: 16px;
+  }
+  
+  .toast-notification {
+    top: 10px;
+    right: 10px;
+    left: 10px;
+    text-align: center;
+  }
 }

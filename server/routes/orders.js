@@ -9,6 +9,7 @@ const Worker = createWorkerModel(workerConnection);
 router.post('/', async (req, res) => {
   try {
     const {
+      bookingType,
       contactInfo,
       items,
       location,
@@ -24,24 +25,34 @@ router.post('/', async (req, res) => {
     } = req.body;
 
     // Validate required fields
-    if (!contactInfo || !items || !location || !date || !timeSlots || !subtotal || !total) {
+    if (!items || !location || !date || subtotal === undefined || total === undefined) {
+      console.log('Validation failed:', { items: !!items, location: !!location, date: !!date, subtotal, total, bookingType });
       return res.status(400).json({ error: 'Missing required fields' });
     }
-
-    // Validate contact information
-    if (!contactInfo.fullName || !contactInfo.mobileNumber || !contactInfo.email) {
-      return res.status(400).json({ error: 'Contact information is incomplete' });
+    
+    if (!Array.isArray(items) || items.length === 0) {
+      console.log('Items validation failed:', items);
+      return res.status(400).json({ error: 'Items must be a non-empty array' });
     }
 
-    console.log('Creating order with contact info:', contactInfo);
+    // Validate workers booking specific fields
+    if (bookingType === 'workers') {
+      if (!contactInfo || !timeSlots) {
+        return res.status(400).json({ error: 'Workers booking requires contact info and time slots' });
+      }
+      if (!contactInfo.fullName || !contactInfo.mobileNumber || !contactInfo.email) {
+        return res.status(400).json({ error: 'Contact information is incomplete' });
+      }
+    }
+
+    console.log('Creating order with booking type:', bookingType);
 
     // Create new order
-    const newOrder = new Order({
-      contactInfo,
+    const orderData = {
+      bookingType: bookingType || 'workers',
       items,
       location,
       date,
-      timeSlots,
       subtotal,
       deliveryFee: deliveryFee || 0,
       platformFee: platformFee || 0,
@@ -51,7 +62,13 @@ router.post('/', async (req, res) => {
       promoCode: promoCode || '',
       paymentStatus: 'pending',
       status: 'pending'
-    });
+    };
+
+    // Add optional fields if provided
+    if (contactInfo) orderData.contactInfo = contactInfo;
+    if (timeSlots) orderData.timeSlots = timeSlots;
+
+    const newOrder = new Order(orderData);
 
     // If user is authenticated, associate order with user
     if (req.user) {

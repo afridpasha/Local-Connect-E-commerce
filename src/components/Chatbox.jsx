@@ -8,9 +8,10 @@ const Chatbox = () => {
   const [inputValue, setInputValue] = useState("");
   const chatMessagesRef = useRef(null);
   const volumeCanvasRef = useRef(null);
+  const isRecordingRef = useRef(false);
 
   // Gemini API configuration
-  const GEMINI_API_KEY = "AIzaSyCqTFBKfrU8EqEoxc6e4Nezv7fTAP2BVNw"; // Replace with your actual Gemini API key
+  const GEMINI_API_KEY = "AIzaSyB8Fc-sPpmuY0cg4CcZgyhpCywmbOH754I";
   const GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
 
   // Refs for audio/speech
@@ -20,13 +21,13 @@ const Chatbox = () => {
   const analyserRef = useRef(null);
   const volumeAnimationRef = useRef(null);
   const recognitionRef = useRef(null);
+  const streamRef = useRef(null);
+  const transcriptRef = useRef("");
 
-  // Toggle the chatbot window
   const toggleChatbot = () => {
     setShowChat(!showChat);
   };
 
-  // Scroll chat container to the bottom whenever messages update
   const scrollToBottom = () => {
     if (chatMessagesRef.current) {
       chatMessagesRef.current.scrollTop = chatMessagesRef.current.scrollHeight;
@@ -37,13 +38,36 @@ const Chatbox = () => {
     scrollToBottom();
   }, [messages]);
 
-  // Add a message to state
+  // Test speech recognition support on component mount
+  useEffect(() => {
+    const testSpeechRecognition = () => {
+      console.log("🔍 Testing speech recognition support...");
+      
+      if ("webkitSpeechRecognition" in window) {
+        console.log("✅ webkitSpeechRecognition supported");
+      } else if ("SpeechRecognition" in window) {
+        console.log("✅ SpeechRecognition supported");
+      } else {
+        console.log("❌ Speech recognition not supported");
+      }
+      
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        console.log("✅ getUserMedia supported");
+      } else {
+        console.log("❌ getUserMedia not supported");
+      }
+      
+      console.log("🌐 User Agent:", navigator.userAgent);
+    };
+    
+    testSpeechRecognition();
+  }, []);
+
   const addMessage = (sender, text) => {
     const newMsg = { sender, text, timestamp: new Date().toLocaleTimeString() };
     setMessages((prev) => [...prev, newMsg]);
   };
 
-  // Send a message (user text) and get a bot reply
   const sendMessage = async () => {
     if (!inputValue.trim()) return;
     addMessage("user", inputValue);
@@ -58,7 +82,6 @@ const Chatbox = () => {
     }
   };
 
-  // Get bot response via Gemini API
   const getBotResponse = async (userText) => {
     try {
       const response = await fetch(`${GEMINI_ENDPOINT}?key=${GEMINI_API_KEY}`, {
@@ -98,42 +121,78 @@ const Chatbox = () => {
     }
   };
 
-  // ----- Audio Recording and Speech Recognition Functions -----
-
   const startRecording = async () => {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       alert("Audio recording not supported in this browser.");
       return;
     }
+    
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      console.log("🎤 Requesting microphone access...");
+      
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        }
+      });
+      
+      console.log("✅ Microphone access granted");
+      streamRef.current = stream;
+      
       const mediaRecorder = new MediaRecorder(stream);
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
+      
       mediaRecorder.ondataavailable = (e) => {
         if (e.data.size > 0) {
           audioChunksRef.current.push(e.data);
         }
       };
-      mediaRecorder.onstop = () => {
-        addMessage("user", "[Audio recorded]");
-      };
+      
       mediaRecorder.start();
       setIsRecording(true);
+      isRecordingRef.current = true;
+      transcriptRef.current = "";
+      
+      // Start volume meter first
       startVolumeMeter(stream);
-      startSpeechRecognition();
+      
+      // Then start speech recognition
+      setTimeout(() => {
+        startSpeechRecognition();
+      }, 500);
+      
+      console.log("🎤 Recording started successfully");
+      
     } catch (err) {
-      console.error("Error starting recording:", err);
+      console.error("❌ Error starting recording:", err);
+      
+      if (err.name === 'NotAllowedError') {
+        alert("Microphone permission denied. Please allow microphone access in your browser settings and try again.");
+      } else if (err.name === 'NotFoundError') {
+        alert("No microphone found. Please check your microphone connection.");
+      } else {
+        alert("Could not access microphone: " + err.message);
+      }
     }
   };
 
   const stopRecording = () => {
+    setIsRecording(false);
+    isRecordingRef.current = false;
+    
+    stopSpeechRecognition();
+    stopVolumeMeter();
+    
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
       mediaRecorderRef.current.stop();
     }
-    setIsRecording(false);
-    stopVolumeMeter();
-    stopSpeechRecognition();
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+    }
   };
 
   const toggleRecording = async () => {
@@ -144,65 +203,199 @@ const Chatbox = () => {
     }
   };
 
-  // Speech recognition using the Web Speech API
   const startSpeechRecognition = () => {
+    // Check for speech recognition support
     if (!("webkitSpeechRecognition" in window) && !("SpeechRecognition" in window)) {
-      console.warn("Speech recognition not supported.");
+      console.error("Speech recognition not supported");
+      alert("Voice recognition is not supported in this browser. Please use Chrome, Edge, or Safari.");
       return;
     }
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    const recognition = new SpeechRecognition();
-    recognition.continuous = false;
-    recognition.interimResults = false;
-    recognition.lang = "en-US";
-    recognition.onresult = (event) => {
-      const transcript = event.results[0][0].transcript;
-      setInputValue(transcript);
-    };
-    recognition.onerror = (event) => {
-      console.error("Speech recognition error:", event.error);
-    };
-    recognition.onend = () => {
-      if (isRecording) stopRecording();
-    };
-    recognition.start();
-    recognitionRef.current = recognition;
+    
+    try {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      const recognition = new SpeechRecognition();
+      
+      // Configure recognition settings
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = "en-US";
+      recognition.maxAlternatives = 1;
+      
+      recognition.onstart = () => {
+        console.log("🎤 Speech recognition started successfully");
+      };
+      
+      recognition.onresult = (event) => {
+        let interimTranscript = "";
+        let finalTranscript = "";
+        
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const transcript = event.results[i][0].transcript;
+          
+          if (event.results[i].isFinal) {
+            finalTranscript += transcript + " ";
+            transcriptRef.current += transcript + " ";
+          } else {
+            interimTranscript += transcript;
+          }
+        }
+        
+        const fullText = (transcriptRef.current + interimTranscript).trim();
+        setInputValue(fullText);
+        
+        if (finalTranscript) {
+          console.log("📝 Final transcript:", finalTranscript);
+        }
+        if (interimTranscript) {
+          console.log("📝 Interim transcript:", interimTranscript);
+        }
+      };
+      
+      recognition.onerror = (event) => {
+        console.error("❌ Speech recognition error:", event.error, event);
+        
+        switch (event.error) {
+          case "not-allowed":
+            alert("Microphone permission denied. Please allow microphone access and try again.");
+            stopRecording();
+            break;
+          case "no-speech":
+            console.log("No speech detected, continuing...");
+            break;
+          case "audio-capture":
+            alert("No microphone found. Please check your microphone connection.");
+            stopRecording();
+            break;
+          case "network":
+            console.log("Network error, retrying...");
+            break;
+          default:
+            console.log("Speech recognition error:", event.error);
+        }
+      };
+      
+      recognition.onend = () => {
+        console.log("🔄 Speech recognition ended");
+        
+        // Only restart if we're still supposed to be recording
+        if (isRecordingRef.current && recognitionRef.current) {
+          console.log("🔄 Restarting recognition...");
+          setTimeout(() => {
+            if (isRecordingRef.current && recognitionRef.current) {
+              try {
+                recognitionRef.current.start();
+              } catch (err) {
+                console.error("❌ Error restarting recognition:", err);
+                // Try to reinitialize if restart fails
+                if (isRecordingRef.current) {
+                  startSpeechRecognition();
+                }
+              }
+            }
+          }, 100);
+        } else {
+          console.log("⏹️ Not restarting - recording stopped");
+        }
+      };
+      
+      // Start recognition
+      recognition.start();
+      recognitionRef.current = recognition;
+      console.log("✅ Speech recognition initialized and started");
+      
+    } catch (err) {
+      console.error("❌ Error initializing speech recognition:", err);
+      alert("Could not start voice recognition. Please check your browser settings.");
+      stopRecording();
+    }
   };
 
   const stopSpeechRecognition = () => {
     if (recognitionRef.current) {
-      recognitionRef.current.stop();
+      try {
+        const recognition = recognitionRef.current;
+        recognitionRef.current = null;
+        recognition.onend = null;
+        recognition.stop();
+        console.log("🛑 Speech recognition stopped");
+      } catch (err) {
+        console.error("Error stopping recognition:", err);
+      }
     }
   };
 
-  // Volume meter (visual equalizer) functions
   const startVolumeMeter = (stream) => {
-    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-    audioContextRef.current = audioContext;
-    const analyser = audioContext.createAnalyser();
-    analyser.fftSize = 512;
-    analyserRef.current = analyser;
-    const source = audioContext.createMediaStreamSource(stream);
-    source.connect(analyser);
-    animateMeter();
+    try {
+      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      audioContextRef.current = audioContext;
+      const analyser = audioContext.createAnalyser();
+      analyser.fftSize = 256;
+      analyser.smoothingTimeConstant = 0.8;
+      analyserRef.current = analyser;
+      const source = audioContext.createMediaStreamSource(stream);
+      source.connect(analyser);
+      animateMeter();
+      console.log("📊 Volume meter started");
+    } catch (err) {
+      console.error("Error starting volume meter:", err);
+    }
   };
 
   const animateMeter = () => {
+    if (!isRecordingRef.current) return;
+    
     const canvas = volumeCanvasRef.current;
     if (!canvas || !analyserRef.current) return;
+    
     const ctx = canvas.getContext("2d");
     const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
     analyserRef.current.getByteFrequencyData(dataArray);
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    const barWidth = (canvas.width / dataArray.length) * 2.5;
-    let x = 0;
-    for (let i = 0; i < dataArray.length; i++) {
-      const barValue = dataArray[i];
-      const barHeight = (barValue / 255) * canvas.height;
-      ctx.fillStyle = `rgb(${barValue + 100}, 50, 50)`;
+    
+    // Clear canvas with gradient background
+    const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+    gradient.addColorStop(0, '#f8f9fa');
+    gradient.addColorStop(1, '#e9ecef');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    // Calculate average volume for overall visualization
+    const average = dataArray.reduce((sum, value) => sum + value, 0) / dataArray.length;
+    
+    // Draw frequency bars
+    const barCount = Math.min(32, dataArray.length); // Limit bars for better visibility
+    const barWidth = (canvas.width - (barCount - 1)) / barCount;
+    
+    for (let i = 0; i < barCount; i++) {
+      const dataIndex = Math.floor((i / barCount) * dataArray.length);
+      const barHeight = Math.max(2, (dataArray[dataIndex] / 255) * canvas.height * 0.8);
+      const x = i * (barWidth + 1);
+      
+      // Create color based on frequency and volume
+      const intensity = dataArray[dataIndex] / 255;
+      const red = Math.min(255, 100 + intensity * 155);
+      const green = Math.min(255, 200 - intensity * 100);
+      const blue = Math.min(255, 50 + intensity * 50);
+      
+      // Create gradient for each bar
+      const barGradient = ctx.createLinearGradient(0, canvas.height - barHeight, 0, canvas.height);
+      barGradient.addColorStop(0, `rgba(${red}, ${green}, ${blue}, 0.8)`);
+      barGradient.addColorStop(1, `rgba(${red}, ${green}, ${blue}, 1)`);
+      
+      ctx.fillStyle = barGradient;
       ctx.fillRect(x, canvas.height - barHeight, barWidth, barHeight);
-      x += barWidth + 1;
+      
+      // Add highlight on top
+      ctx.fillStyle = `rgba(255, 255, 255, ${intensity * 0.3})`;
+      ctx.fillRect(x, canvas.height - barHeight, barWidth, Math.max(1, barHeight * 0.1));
     }
+    
+    // Draw volume level indicator
+    const volumeLevel = average / 255;
+    ctx.fillStyle = volumeLevel > 0.1 ? '#4ade80' : '#94a3b8';
+    ctx.fillRect(canvas.width - 60, 5, 50, 8);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(canvas.width - 58, 7, 46 * volumeLevel, 4);
+    
     volumeAnimationRef.current = requestAnimationFrame(animateMeter);
   };
 
@@ -211,13 +404,13 @@ const Chatbox = () => {
       cancelAnimationFrame(volumeAnimationRef.current);
       volumeAnimationRef.current = null;
     }
-    if (audioContextRef.current) {
+    if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
       audioContextRef.current.close();
       audioContextRef.current = null;
     }
+    console.log("📊 Volume meter stopped");
   };
 
-  // ----- Text-to-Speech (per bot message) -----
   const speakText = (text) => {
     if (!window.speechSynthesis) {
       alert("Speech Synthesis not supported in this browser.");
@@ -227,7 +420,6 @@ const Chatbox = () => {
     window.speechSynthesis.speak(utter);
   };
 
-  // ----- File Upload Handling -----
   const triggerFileDialog = (mode) => {
     const fileInput = document.createElement("input");
     fileInput.type = "file";
@@ -246,12 +438,10 @@ const Chatbox = () => {
 
   return (
     <div>
-      {/* Floating Chat Toggle Button */}
       <div className="chat-toggle-btn" onClick={toggleChatbot}>
         <img src="https://png.pngtree.com/png-clipart/20230401/original/pngtree-smart-chatbot-cartoon-clipart-png-image_9015126.png" alt="Chat" />
       </div>
 
-      {/* Chat Window */}
       {showChat && (
         <div className="chatbot-window">
           <div className="chatbot-header">
@@ -261,12 +451,44 @@ const Chatbox = () => {
             </button>
           </div>
 
-          {/* Volume Meter */}
-          <div className="volume-meter-container">
-            <canvas ref={volumeCanvasRef} width="300" height="50"></canvas>
-          </div>
+          {isRecording && (
+            <div className="volume-meter-container">
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{ 
+                    width: '12px', 
+                    height: '12px', 
+                    borderRadius: '50%', 
+                    background: '#ff4444',
+                    animation: 'blink 1s infinite'
+                  }}></div>
+                  <span style={{ fontSize: '13px', color: '#333', fontWeight: '600' }}>🎤 Listening...</span>
+                </div>
+                <div style={{ fontSize: '11px', color: '#666' }}>
+                  {recognitionRef.current ? '✅ Recognition Active' : '❌ Recognition Inactive'}
+                </div>
+              </div>
+              <canvas 
+                ref={volumeCanvasRef} 
+                width="350" 
+                height="60" 
+                style={{
+                  background: 'linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%)', 
+                  borderRadius: '8px',
+                  border: '2px solid #dee2e6'
+                }}
+              ></canvas>
+              <div style={{ 
+                fontSize: '10px', 
+                color: '#666', 
+                marginTop: '5px',
+                textAlign: 'center'
+              }}>
+                Speak clearly into your microphone
+              </div>
+            </div>
+          )}
 
-          {/* Chat Messages */}
           <div className="chat-messages" ref={chatMessagesRef}>
             {messages.map((msg, idx) => (
               <div
@@ -281,14 +503,12 @@ const Chatbox = () => {
                 {msg.sender === "bot" && (
                   <div className="bot-actions">
                     <button onClick={() => speakText(msg.text)}>Speak</button>
-                    {/* Add more bot action buttons here as needed */}
                   </div>
                 )}
               </div>
             ))}
           </div>
 
-          {/* Chat Input Area */}
           <div className="chat-input-area">
             <div className="input-buttons">
               <button className="icon-btn" onClick={() => triggerFileDialog("any")}>
@@ -303,11 +523,19 @@ const Chatbox = () => {
                   alt="Camera"
                 />
               </button>
-              <button className="icon-btn" onClick={toggleRecording}>
+              <button 
+                className="icon-btn" 
+                onClick={toggleRecording}
+                style={{
+                  background: isRecording ? 'linear-gradient(135deg, #ff4444 0%, #ff6b6b 100%)' : undefined,
+                  borderColor: isRecording ? '#ff4444' : undefined,
+                  transform: isRecording ? 'scale(1.1)' : undefined
+                }}
+              >
                 <img
-                  id="mic-icon"
                   src="https://static.vecteezy.com/system/resources/previews/012/750/893/original/microphone-silhouette-icon-voice-record-simbol-audio-mic-logo-vector.jpg"
                   alt="Mic"
+                  style={{ filter: isRecording ? 'brightness(0) invert(1)' : undefined }}
                 />
               </button>
             </div>
@@ -315,7 +543,12 @@ const Chatbox = () => {
               type="text"
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
-              placeholder="Type your message..."
+              placeholder={isRecording ? "🎤 Listening... Speak now" : "Type your message or click mic to speak..."}
+              onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
+              style={{
+                borderColor: isRecording ? '#ff6b35' : '#e2e8f0',
+                background: isRecording ? '#fff5f0' : '#f8f9fa'
+              }}
             />
             <button className="send-btn" onClick={sendMessage}>
               Send

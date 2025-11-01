@@ -7,21 +7,27 @@ const OrderSchema = new mongoose.Schema({
     ref: 'User',
     required: false // Not required as guest checkout is allowed
   },
-  // User contact information
+  // Booking type
+  bookingType: {
+    type: String,
+    enum: ['workers', 'events'],
+    default: 'workers'
+  },
+  // User contact information (required for workers booking only)
   contactInfo: {
     fullName: {
       type: String,
-      required: true,
+      required: false,
       trim: true
     },
     mobileNumber: {
       type: String,
-      required: true,
+      required: false,
       trim: true
     },
     email: {
       type: String,
-      required: true,
+      required: false,
       trim: true,
       lowercase: true,
       match: [/^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/, 'Please provide a valid email address']
@@ -62,7 +68,7 @@ const OrderSchema = new mongoose.Schema({
   },
   timeSlots: [{
     type: String,
-    required: true
+    required: false
   }],
   // Payment details
   subtotal: {
