@@ -15,7 +15,7 @@ const __dirname = dirname(__filename);
 const stripeKey = process.env.STRIPE_KEY || 'sk_test_51RBkJNPPVB7AxTVkwHJMPdWekPj3c61kfrx9xfBQlwbVluBtVZL20HbTztI0ZnxdyTaQJHbC06VEd7m91R0Hza6r0024lVSr3a';
 const stripe = Stripe(stripeKey);
 const app = express();
-const port = process.env.PORT || 5000;
+const port = process.env.STRIPE_SERVER_PORT || 5000;
 
 // Middleware
 app.use(express.json());
